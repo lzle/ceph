@@ -504,6 +504,54 @@ curl 127.0.0.1:9283/metrics
 }
 ```
 
+### 移除
+
+**清理 lvm 缓存**
+
+执行 `ceph-volume lvm list` 命令查到其中的 osd 编号并没有在集群中，osd.70 是残留的信息。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]# ceph-volume lvm list
+====== osd.70 ======
+
+  [block]       /dev/ceph-56b5a16e-59d0-4f5e-847e-a01d4b97731b/osd-block-a0a15a95-e0dd-4f72-8ee8-72de012b7c8c
+
+      block device              /dev/ceph-56b5a16e-59d0-4f5e-847e-a01d4b97731b/osd-block-a0a15a95-e0dd-4f72-8ee8-72de012b7c8c
+      block uuid                q0F5PX-oJn0-JFy8-z9J6-pLg7-XPMV-hUJKmc
+      cephx lockbox secret
+      cluster fsid              4c5fc723-aafb-4ffe-be4c-a3875e82d23c
+      cluster name              ceph
+      crush device class        None
+      encrypted                 0
+      osd fsid                  a0a15a95-e0dd-4f72-8ee8-72de012b7c8c
+      osd id                    70
+      osdspec affinity
+      type                      block
+      vdo                       0
+      devices                   /dev/sdl
+```
+
+查看 lvm 分区信息。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]# lsblk -l
+sdl                                                                                                   8:176  0   7.3T  0 disk
+ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72--8ee8--72de012b7c8c 253:11   0   7.3T  0 lvm
+```
+
+使用 `dmsetup remove` 进行清理。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]#  dmsetup ls
+ceph--f2a51233--fa09--42a7--9a0c--709d747ed1ff-osd--block--8efe0e3c--5abb--41d6--8afb--48fa537a17f8	(253:9)
+ceph--e1adf53a--fc7e--4e9f--99f6--ab1db5830bc9-osd--block--95a7d94c--6e4a--4884--ab11--ffeef16869c3	(253:3)
+ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72--8ee8--72de012b7c8c	(253:11)
+
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]# dmsetup remove  ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72--8ee8--72de012b7c8c
+```
+
+再次执行 `ceph-volume lvm list` 时，残留信息被清理。
+
 
 ## 命令
 
@@ -525,13 +573,13 @@ PG_NOT_DEEP_SCRUBBED 95 pgs not deep-scrubbed in time
 
 ### OSD
 
-本地执行 OSD 创建命令。
+本地执行 osd 创建命令。
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# /usr/sbin/ceph-volume --cluster ceph lvm create --bluestore --data /dev/sdc
 ```
 
-查看所有 OSD 分布。
+查看所有 osd 分布。
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph osd tree
@@ -560,7 +608,7 @@ ID CLASS WEIGHT   TYPE NAME                                       STATUS REWEIGH
 17   hdd  3.63899         osd.17                                      up  1.00000 1.00000
 ```
 
-查看所有 OSD 概览信息。
+查看所有 osd 概览信息。
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph osd df
@@ -587,7 +635,7 @@ ID CLASS WEIGHT  REWEIGHT SIZE    RAW USE DATA    OMAP    META     AVAIL   %USE 
 MIN/MAX VAR: 0.86/1.26  STDDEV: 0.07
 ```
 
-查看具体 OSD 的 BLOCK 信息。
+查看具体 osd 的 block 信息。
 
 ```
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph-volume lvm list /dev/sdj
@@ -611,11 +659,40 @@ MIN/MAX VAR: 0.86/1.26  STDDEV: 0.07
       devices                   /dev/sdj
 ```
 
-停止和启动 OSD 服务。 
+停止和启动 osd 服务。 
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# systemctl stop ceph-osd@2
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# systemctl start ceph-osd@2
+```
+
+获取指定 osd 的配置信息。
+
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph daemon osd.0 config show
+```
+
+查看指定 osd 的核心配置。
+
+```
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 ~]# ceph config show osd.44
+NAME                          VALUE                                                                                                                                 SOURCE   OVERRIDES   IGNORES
+auth_client_required          cephx                                                                                                                                 file
+auth_cluster_required         cephx                                                                                                                                 file
+auth_service_required         cephx                                                                                                                                 file
+daemonize                     false                                                                                                                                 override
+keyring                       $osd_data/keyring                                                                                                                     default
+leveldb_log                                                                                                                                                         default
+mon_host                      10.103.3.134,10.103.3.137,10.103.3.139                                                                                                file
+mon_initial_members           dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134, dx-lt-yd-hebei-shijiazhuang-10-10-103-3-137, dx-lt-yd-hebei-shijiazhuang-10-10-103-3-139 file
+osd_max_backfills             3                                                                                                                                     override (mon[3])
+osd_recovery_max_active       9                                                                                                                                     override (mon[9])
+osd_recovery_max_single_start 1                                                                                                                                     mon
+osd_recovery_sleep            0.500000                                                                                                                              mon
+rbd_default_features          1                                                                                                                                     mon      default[61]
+rbd_default_format            2                                                                                                                                     mon
+setgroup                      ceph                                                                                                                                  cmdline
+setuser                       ceph
 ```
 
 
@@ -803,6 +880,13 @@ PG    OBJECTS DEGRADED MISPLACED UNFOUND BYTES     OMAP_BYTES* OMAP_KEYS* LOG  S
 1.e3     1173        0         0       0 461873152           0          0 3074 active+clean   28h 1703'161053 1703:400210  [5,16]p5  [5,16]p5 2023-08-14 10:06:55.247139 2023-08-11 21:36:33.34121
 ```
 
+获取当前集群 pg 状态。
+
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-24 ~]# ceph pg stat
+128 pgs: 67 active+undersized+degraded, 61 active+clean; 35 GiB data, 106 GiB used, 2.1 TiB / 2.2 TiB avail; 4642/27156 objects degraded (17.094%)
+```
+
 更多命令：
 
 ```bash
@@ -816,5 +900,7 @@ ceph pg ls
 
 ## 相关链接
 
-[awesome-resty](https://github.com/bungle/awesome-resty)
+[pg-states](https://docs.ceph.com/en/latest/dev/placement-group/#user-visible-pg-states)
+
+[peering](https://docs.ceph.com/en/latest/dev/peering/)
 
