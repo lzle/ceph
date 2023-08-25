@@ -7,7 +7,10 @@
     * [安装](#安装)
     * [存储池](#存储池)  
     * [监控](#监控)
-    * [移除](#移除)
+      
+* [移除](#移除)
+    * [清理OSD缓存](#清理OSD缓存)
+    * [清理HOST缓存](#清理HOST缓存)
     
 * [命令](#命令)
     * [OSD](#osd)
@@ -17,7 +20,11 @@
     * [CRUSH](#crush)
     * [RULE](#rule)
     * [PG](#pg)
+    * [IOSTAT](#iostat)
     
+* [管理](#管理)
+    * [Recovery](#Recovery)
+
 ## 部署
 
 Ceph目前最新版本18（R版），此次部署的是（N版）
@@ -504,9 +511,10 @@ curl 127.0.0.1:9283/metrics
 }
 ```
 
-### 移除
 
-**清理 lvm 缓存**
+## 移除
+
+### 清理OSD缓存
 
 执行 `ceph-volume lvm list` 命令查到其中的 osd 编号并没有在集群中，osd.70 是残留的信息。
 
@@ -551,6 +559,24 @@ ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72-
 ```
 
 再次执行 `ceph-volume lvm list` 时，残留信息被清理。
+
+### 清理HOST缓存
+
+通过命令 `ceph osd tree` 查看，可以查看有的主机已经没有 osd 节点，可以进行清理
+
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 ~]# ceph osd tree
+254   hdd   3.63869         osd.254                                      up  1.00000 1.00000
+-64               0     host dx-lt-yd-zhejiang-jinhua-5-10-104-1-21
+-21        43.66425     host dx-lt-yd-zhejiang-jinhua-5-10-104-1-37
+ 52   hdd   3.63869         osd.52                                       up  1.00000 1.00000
+```
+
+执行清理
+
+```bash
+ceph osd crush remove host dx-lt-yd-zhejiang-jinhua-5-10-104-1-21
+```
 
 
 ## 命令
@@ -712,7 +738,7 @@ POOLS:
     nomad      1     512     71 GiB     560.91k     176 GiB      0.28        31 TiB
 ```
 
-获取 pool 的相关参数并进行修改。
+获取 pool 的相关参数和进行参数修改。
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# ceph osd pool get nomad size
@@ -720,6 +746,27 @@ size: 2
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# ceph osd pool get nomad pg_num
 pg_num: 64
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# ceph osd pool set nomad pg_num 512
+```
+
+获取 pool 的所有参数。
+
+```
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-92 ~]# ceph osd pool get nomad all
+size: 2
+min_size: 1
+pg_num: 512
+pgp_num: 512
+crush_rule: replicated_rule
+hashpspool: true
+nodelete: false
+nopgchange: false
+nosizechange: false
+write_fadvise_dontneed: false
+noscrub: true
+nodeep-scrub: true
+use_gmt_hitset: 1
+fast_read: 0
+pg_autoscale_mode: warn
 ```
 
 ### RBD
@@ -898,9 +945,73 @@ ceph pg dump pools
 ceph pg ls
 ```
 
+### IOSTAT
+
+查看集群 IOPS、读写带宽信息。
+
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 ~]# ceph iostat
++--------------------------------------------+--------------------------------------------+--------------------------------------------+--------------------------------------------+--------------------------------------------+--------------------------------------------+
+|                                       Read |                                      Write |                                      Total |                                  Read IOPS |                                 Write IOPS |                                 Total IOPS |
++--------------------------------------------+--------------------------------------------+--------------------------------------------+--------------------------------------------+--------------------------------------------+--------------------------------------------+
+|                                  149 MiB/s |                                  381 MiB/s |                                  530 MiB/s |                                       1915 |                                       1455 |                                       3370 |
+|                                  149 MiB/s |                                  381 MiB/s |                                  530 MiB/s |                                       1915 |                                       1455 |                                       3370 |
+|                                  149 MiB/s |                                  382 MiB/s |                                  531 MiB/s |                                       1917 |                                       1457 |                                       3375 |
+|                                  149 MiB/s |                                  382 MiB/s |                                  531 MiB/s |                                       1917 |                                       1457 |                                       3375 |
+|                                  233 MiB/s |                                  525 MiB/s |                                  759 MiB/s |                                       3007 |                                       2157 |                                       5164 |
+|                                  233 MiB/s |                                  525 MiB/s |                                  759 MiB/s |                                       3007 |                                       2157 |                                       5164 |
+```
+
+
+## 管理
+
+### Recovery
+
+首先，通过命令查看 osd 影响 recovery 速度的关键配置项。
+
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 ~]# ceph daemon osd.13 config show | egrep "osd_max_backfills|osd_recovery_max_active|osd_recovery_sleep|osd_recovery_op_priority|osd_recovery_max_single_start"
+    "osd_max_backfills": "1",
+    "osd_recovery_max_active": "1",
+    "osd_recovery_max_single_start": "1",
+    "osd_recovery_op_priority": "3",
+    "osd_recovery_sleep": "0.500000",
+    "osd_recovery_sleep_hdd": "0.100000",
+    "osd_recovery_sleep_hybrid": "0.025000",
+    "osd_recovery_sleep_ssd": "0.000000",
+```
+
+核心影响恢复速度的参数：
+
+* osd_max_backfills：由于一个 osd 承载了多个 pg,所以一个 osd 中的 pg 很大可能需要做 recovery。
+  这个参数就是设置每个 osd 最多能让 osd_max_backfills 个 pg 进行同时做 backfill。
+
+* osd_recovery_op_priority：osd 修复操作的优先级，可小于该值；这个值越小，recovery 优先级越高。
+  高优先级会导致集群的性能降级直到 recovery 结束。
+  
+* osd_recovery_max_active：一个 osd 上可以承载多个 pg，可能好几个 pg 都需要 recovery，
+  这个值限定该 osd 最多同时有多少 pg 做 recovery。
+
+* osd_recovery_max_single_start： 未知
+
+* osd_recovery_sleep：每个 recovery 操作之间的间隔时间，单位是 ms。
+
+
+修改配置提高 recovery 速度，同时注意观察集群延迟情况。
+
+```bash
+ceph tell "osd.*" injectargs --osd_max_backfills=15
+ceph tell "osd.*" injectargs --osd_recovery_max_active=15
+ceph tell "osd.*" injectargs --osd_recovery_max_single_start=10
+ceph tell "osd.*" injectargs --osd_recovery_sleep=0.3
+```
+
+
 ## 相关链接
 
 [pg-states](https://docs.ceph.com/en/latest/dev/placement-group/#user-visible-pg-states)
 
 [peering](https://docs.ceph.com/en/latest/dev/peering/)
+
+[speed up osd recovery](https://www.suse.com/support/kb/doc/?id=000019693)
 
