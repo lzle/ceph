@@ -7,8 +7,10 @@
     * [安装](#安装)
     * [存储池](#存储池)  
     * [监控](#监控)
+    * [SSD](#SSD)
       
-* [移除](#移除)
+* [卸载](#卸载)
+    * [移除OSD](#移除OSD)
     * [清理OSD缓存](#清理OSD缓存)
     * [清理HOST缓存](#清理HOST缓存)
     
@@ -376,17 +378,7 @@ ceph-deploy mgr create $node1 $node2 $node3
     id:     16b28327-7eca-494b-93fe-4218a156107a
     health: HEALTH_WARN
             mons are allowing insecure global_id reclaim
-
-  services:
-    mon: 3 daemons, quorum dx-lt-yd-zhejiang-jinhua-5-10-104-2-23,dx-lt-yd-zhejiang-jinhua-5-10-104-2-24,dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 (age 20m)
-    mgr: dx-lt-yd-zhejiang-jinhua-5-10-104-2-23(active, since 6s), standbys: dx-lt-yd-zhejiang-jinhua-5-10-104-2-25, dx-lt-yd-zhejiang-jinhua-5-10-104-2-24
-    osd: 3 osds: 3 up (since 2m), 3 in (since 2m)
-
-  data:
-    pools:   0 pools, 0 pgs
-    objects: 0 objects, 0 B
-    usage:   3.0 GiB used, 11 TiB / 11 TiB avail
-    pgs:
+......
 ```
 
 解决 `mon is allowing insecure global_id reclaim` 有些许延迟。
@@ -395,7 +387,7 @@ ceph-deploy mgr create $node1 $node2 $node3
 ceph config set mon auth_allow_insecure_global_id_reclaim false
 ```
 
-查看 Ceph 版本：
+最后查看 Ceph 版本：
 
 ```
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-24 ~]# ceph -v
@@ -461,7 +453,7 @@ ceph config set mgr mgr/dashboard/ssl false
 创建一个 dashboard 登录用户名密码。
 
 ```bash
-echo "123456" >password.txt 
+echo "123456" > password.txt 
 ceph dashboard ac-user-create admin administrator -i password.txt 
 ```
 
@@ -511,51 +503,158 @@ curl 127.0.0.1:9283/metrics
 }
 ```
 
+### SSD
 
-## 移除
-
-### 清理OSD缓存
-
-执行 `ceph-volume lvm list` 命令查到其中的 osd 编号并没有在集群中，osd.70 是残留的信息。
+可以使用 NVMe 高性能 SSD 做元数据的存储，
 
 ```bash
-[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]# ceph-volume lvm list
-====== osd.70 ======
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# mkfs.xfs -f /dev/nvme0n1
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mktable gpt
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.wal1 1M 50G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.wal2 50G 100G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.wal3 100G 150G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.wal4 150G 200G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.wal5 200G 250G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.wal6 250G 300G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.db1 300G 500G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.db2 500G 700G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.db3 700G 900G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.db4 900G 1100G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.db5 1100G 1300G
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 mkpart osd.db6 1300G 1500G
 
-  [block]       /dev/ceph-56b5a16e-59d0-4f5e-847e-a01d4b97731b/osd-block-a0a15a95-e0dd-4f72-8ee8-72de012b7c8c
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# parted -s /dev/nvme0n1 print
+Model: NVMe Device (nvme)
+Disk /dev/nvme0n1: 2000GB
+Sector size (logical/physical): 512B/512B
+Partition Table: gpt
+Disk Flags:
 
-      block device              /dev/ceph-56b5a16e-59d0-4f5e-847e-a01d4b97731b/osd-block-a0a15a95-e0dd-4f72-8ee8-72de012b7c8c
-      block uuid                q0F5PX-oJn0-JFy8-z9J6-pLg7-XPMV-hUJKmc
+Number  Start   End     Size    File system  Name      Flags
+ 1      1049kB  50.0GB  50.0GB               osd.wal1
+ 2      50.0GB  100GB   50.0GB               osd.wal2
+ 3      100GB   150GB   50.0GB               osd.wal3
+ 4      150GB   200GB   50.0GB               osd.wal4
+ 5      200GB   250GB   50.0GB               osd.wal5
+ 6      250GB   300GB   50.0GB               osd.wal6
+ 7      300GB   500GB   200GB                osd.db1
+ 8      500GB   700GB   200GB                osd.db2
+ 9      700GB   900GB   200GB                osd.db3
+10      900GB   1100GB  200GB                osd.db4
+11      1100GB  1300GB  200GB                osd.db5
+12      1300GB  1500GB  200GB                osd.db6
+```
+
+部署 osd 指定 db 和 wal 的存储地址。
+
+```bash
+$ ceph-volume lvm create --bluestore --data  /dev/sdd --block.db  /dev/nvme0n1p9 --block.wal /dev/nvme0n1p3
+```
+
+查看 osd 的信息。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]#  ceph-volume lvm list /dev/sdc
+====== osd.9 =======
+
+  [block]       /dev/ceph-992f2429-562f-47da-8001-1398c9d3925b/osd-block-d8aec7ef-611e-491f-957c-335ae16623eb
+
+      block device              /dev/ceph-992f2429-562f-47da-8001-1398c9d3925b/osd-block-d8aec7ef-611e-491f-957c-335ae16623eb
+      block uuid                qHobxU-XUNs-hAXU-JxEM-5pOF-dorm-YWfxbr
       cephx lockbox secret
-      cluster fsid              4c5fc723-aafb-4ffe-be4c-a3875e82d23c
+      cluster fsid              8490f6a8-d99d-43bd-85fb-43abc81bd261
       cluster name              ceph
       crush device class        None
+      db device                 /dev/nvme0n1p8
+      db uuid                   235844c6-4c1e-4ab1-a7c0-c73f44f6c9a5
       encrypted                 0
-      osd fsid                  a0a15a95-e0dd-4f72-8ee8-72de012b7c8c
-      osd id                    70
+      osd fsid                  d8aec7ef-611e-491f-957c-335ae16623eb
+      osd id                    9
       osdspec affinity
       type                      block
       vdo                       0
-      devices                   /dev/sdl
+      wal device                /dev/nvme0n1p2
+      wal uuid                  3570dafa-f0c6-4595-98bc-44dd1375780f
+      devices                   /dev/sdc
+
+  [db]          /dev/nvme0n1p8
+
+      PARTUUID                  235844c6-4c1e-4ab1-a7c0-c73f44f6c9a5
+```
+
+
+## 卸载
+
+### 移除OSD
+
+为了防止两次数据迁移，需要先调整 osd 的 crush weight。
+
+```bash
+# ceph osd crush reweight osd.1 3
+# ceph osd crush reweight osd.1 2
+# ceph osd crush reweight osd.1 0
+```
+
+停止 osd 节点服务。
+
+```bash
+# 命令确认停止osd不会影响数据可用性。
+$ ceph osd ok-to-stop osd.1
+
+$ systemctl stop ceph-osd@1
+```
+
+将节点状态标记为 out，开始迁移数据。
+
+```bash
+$ ceph osd down osd.1
+$ ceph osd out osd.1
+```
+
+迁移完数据之后进行下列操作，确认删除 osd 不会影响数据可用性。
+
+```bash
+$ ceph osd safe-to-destroy osd.1
+```
+
+将 osd 从 CRUSH map 中移除。
+
+```bash
+$ ceph osd crush remove osd.1
+```
+
+删除鉴权秘钥(不删除编号会占住）。
+
+```bash
+$ ceph auth rm osd.1
+```
+
+最后从 OSDMap 中移除 osd，主要清理状态信息，包括通信地址在内的元数据等。
+
+```bash
+$ ceph osd rm osd.1
+```
+
+### 清理OSD缓存
+
+执行 `ceph-volume lvm list` 命令查到其中的 osd 编号并没有在集群中，osd.1 是残留的信息。
+
+```bash
+$ ceph-volume lvm list
 ```
 
 查看 lvm 分区信息。
 
 ```bash
-[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]# lsblk -l
-sdl                                                                                                   8:176  0   7.3T  0 disk
-ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72--8ee8--72de012b7c8c 253:11   0   7.3T  0 lvm
+$ lsblk -l
 ```
 
 使用 `dmsetup remove` 进行清理。
 
 ```bash
-[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]#  dmsetup ls
-ceph--f2a51233--fa09--42a7--9a0c--709d747ed1ff-osd--block--8efe0e3c--5abb--41d6--8afb--48fa537a17f8	(253:9)
-ceph--e1adf53a--fc7e--4e9f--99f6--ab1db5830bc9-osd--block--95a7d94c--6e4a--4884--ab11--ffeef16869c3	(253:3)
-ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72--8ee8--72de012b7c8c	(253:11)
+$ dmsetup ls
 
-[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-2-158 ~]# dmsetup remove  ceph--56b5a16e--59d0--4f5e--847e--a01d4b97731b-osd--block--a0a15a95--e0dd--4f72--8ee8--72de012b7c8c
+$ dmsetup remove  ceph--56b5a16e--a01d4b97731b-osd--block--a0a15a95
 ```
 
 再次执行 `ceph-volume lvm list` 时，残留信息被清理。
@@ -602,7 +701,7 @@ PG_NOT_DEEP_SCRUBBED 95 pgs not deep-scrubbed in time
 本地执行 osd 创建命令。
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# /usr/sbin/ceph-volume --cluster ceph lvm create --bluestore --data /dev/sdc
+$ /usr/sbin/ceph-volume --cluster ceph lvm create --bluestore --data /dev/sdc
 ```
 
 查看所有 osd 分布。
@@ -688,17 +787,17 @@ MIN/MAX VAR: 0.86/1.26  STDDEV: 0.07
 停止和启动 osd 服务。 
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# systemctl stop ceph-osd@2
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# systemctl start ceph-osd@2
+$ systemctl stop ceph-osd@2
+$ systemctl start ceph-osd@2
 ```
 
-获取指定 osd 的配置信息。
+获取 osd 的配置信息。
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph daemon osd.0 config show
+$ ceph daemon osd.0 config show
 ```
 
-查看指定 osd 的核心配置。
+查看 osd 的核心配置。
 
 ```
 [root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 ~]# ceph config show osd.44
@@ -721,6 +820,37 @@ setgroup                      ceph                                              
 setuser                       ceph
 ```
 
+查看 osd commit 和 apply 延迟信息。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-10-90 ~]# ceph osd perf
+osd commit_latency(ms) apply_latency(ms)
+  0                109               109
+  6                  0                 0
+  3                  1                 1
+ 17                  1                 1
+ 16                  0                 0
+  5                  0                 0
+  4                  0                 0
+```
+
+查看 osd 状态信息。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 ~]# ceph osd status
++-----+---------------------------------------------+-------+-------+--------+---------+--------+---------+-----------+
+|  id |                     host                    |  used | avail | wr ops | wr data | rd ops | rd data |   state   |
++-----+---------------------------------------------+-------+-------+--------+---------+--------+---------+-----------+
+|  0  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 3760G | 3690G |    7   |  6055k  |    1   |   179k  | exists,up |
+|  1  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 3791G | 3660G |   25   |  4291k  |    3   |   426k  | exists,up |
+|  2  |  dx-lt-yd-hebei-shijiazhuang-10-10-103-3-44 | 1302G |  485G |   63   |  45.6M  |    0   |     0   | exists,up |
+|  3  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 4267G | 3184G |   15   |  7214k  |    8   |   345k  | exists,up |
+|  4  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 2715G | 4735G |    6   |  2773k  |    5   |   609k  | exists,up |
+|  5  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 3290G | 4161G |   15   |  4640k  |    7   |   580k  | exists,up |
+|  6  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 3947G | 3504G |   14   |  6533k  |   18   |  2003k  | exists,up |
+|  7  |  dx-lt-yd-hebei-shijiazhuang-10-10-103-3-41 | 1368G |  419G |   20   |  25.8M  |    0   |     0   | exists,up |
+|  8  | dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 | 3614G | 3836G |   12   |  5960k  |    7   |   804k  | exists,up |
+```
 
 ### POOL
 
@@ -797,7 +927,7 @@ rbd image 'ceph-volume':
 获取 mgr 服务相关信息。
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph mgr dump
+$ ceph mgr dump
 ```
 
 ### CRUSH
@@ -805,7 +935,7 @@ rbd image 'ceph-volume':
 打印当前 crush 相关配置。
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph osd crush dump
+$ ceph osd crush dump
 ```
 
 ### RULE
@@ -813,24 +943,24 @@ rbd image 'ceph-volume':
 创建：
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph osd crush rule create-replicated rule-hdd default host hdd
+$ ceph osd crush rule create-replicated rule-hdd default host hdd
 ```
 
 设置：
 
 ```rule
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph osd pool set nomad crush_rule rule-hdd
+$ ceph osd pool set nomad crush_rule rule-hdd
 ```
 
 修改：
 
 ```bash
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# ceph osd getcrushmap -o compiled-crushmap
+$ ceph osd getcrushmap -o compiled-crushmap
 8
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# crushtool -d compiled-crushmap -o decompiled-crushmap
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# vim decompiled-crushmap
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# crushtool -c decompiled-crushmap -o new-crushmap
-[root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ~]# ceph osd setcrushmap -i new-crushmap
+$ crushtool -d compiled-crushmap -o decompiled-crushmap
+$ vim decompiled-crushmap
+$ crushtool -c decompiled-crushmap -o new-crushmap
+$ ceph osd setcrushmap -i new-crushmap
 ```
 
 ### PG
@@ -877,6 +1007,25 @@ OSD_STAT USED    AVAIL   USED_RAW TOTAL   HB_PEERS                            PG
 8         26 GiB 3.6 TiB   27 GiB 3.6 TiB      [0,2,3,4,6,7,9,10,12,13,15,16]     68             34
 9         19 GiB 3.6 TiB   20 GiB 3.6 TiB       [0,1,4,5,8,10,11,13,14,16,17]     49             21
 sum      388 GiB  65 TiB  406 GiB  65 TiB
+```
+
+查看特殊状态 pg 的详情。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 ~]# ceph pg dump_stuck
+PG_STAT STATE                                           UP          UP_PRIMARY ACTING      ACTING_PRIMARY
+1.e87                     active+remapped+backfill_wait    [23,113]         23    [23,116]             23
+1.e7c                       active+remapped+backfilling    [113,87]        113     [17,89]             17
+1.e76                     active+remapped+backfill_wait     [21,82]         21    [21,107]             21
+1.e70                     active+remapped+backfill_wait    [33,109]         33     [33,25]             33
+1.e61                       active+remapped+backfilling    [30,108]         30     [30,57]             30
+1.e60                     active+remapped+backfill_wait      [62,9]         62      [9,26]              9
+1.e2c                     active+remapped+backfill_wait    [116,66]        116    [116,10]            116
+1.e21                     active+remapped+backfill_wait     [64,11]         64    [11,103]             11
+1.dff                       active+remapped+backfilling    [111,27]        111     [27,17]             27
+1.dc3                       active+remapped+backfilling     [73,32]         73     [32,94]             32
+1.daa                       active+remapped+backfilling     [88,82]         88     [88,58]             88
+1.d1d                     active+remapped+backfill_wait    [111,58]        111     [26,76]             26
 ```
 
 获取指定 osd 上做为 primary pg 的基本状态信息。
@@ -932,6 +1081,12 @@ PG    OBJECTS DEGRADED MISPLACED UNFOUND BYTES     OMAP_BYTES* OMAP_KEYS* LOG  S
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-24 ~]# ceph pg stat
 128 pgs: 67 active+undersized+degraded, 61 active+clean; 35 GiB data, 106 GiB used, 2.1 TiB / 2.2 TiB avail; 4642/27156 objects degraded (17.094%)
+```
+
+如果 pg 出现不一致，可以尝试执行命令对 pg 进行修复。
+
+```bash
+ceph pg repair 1.1f8
 ```
 
 更多命令：
@@ -1000,10 +1155,10 @@ ceph pg ls
 修改配置提高 recovery 速度，同时注意观察集群延迟情况。
 
 ```bash
-ceph tell "osd.*" injectargs --osd_max_backfills=15
-ceph tell "osd.*" injectargs --osd_recovery_max_active=15
-ceph tell "osd.*" injectargs --osd_recovery_max_single_start=10
-ceph tell "osd.*" injectargs --osd_recovery_sleep=0.3
+$ ceph tell "osd.*" injectargs --osd_max_backfills=15
+$ ceph tell "osd.*" injectargs --osd_recovery_max_active=15
+$ ceph tell "osd.*" injectargs --osd_recovery_max_single_start=10
+$ ceph tell "osd.*" injectargs --osd_recovery_sleep=0.3
 ```
 
 
@@ -1014,4 +1169,3 @@ ceph tell "osd.*" injectargs --osd_recovery_sleep=0.3
 [peering](https://docs.ceph.com/en/latest/dev/peering/)
 
 [speed up osd recovery](https://www.suse.com/support/kb/doc/?id=000019693)
-
