@@ -26,6 +26,7 @@
     
 * [管理](#管理)
     * [Recovery](#Recovery)
+    * [配置](#配置)
 
 ## 部署
 
@@ -704,6 +705,12 @@ PG_NOT_DEEP_SCRUBBED 95 pgs not deep-scrubbed in time
 $ /usr/sbin/ceph-volume --cluster ceph lvm create --bluestore --data /dev/sdc
 ```
 
+查看 osd 状态。
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 ~]# ceph osd stat
+156 osds: 154 up (since 2d), 154 in (since 8w); epoch: e132810
+```
+
 查看所有 osd 分布。
 
 ```bash
@@ -733,7 +740,7 @@ ID CLASS WEIGHT   TYPE NAME                                       STATUS REWEIGH
 17   hdd  3.63899         osd.17                                      up  1.00000 1.00000
 ```
 
-查看所有 osd 概览信息。
+查看所有 osd 磁盘使用状态。
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-25 ~]# ceph osd df
@@ -758,6 +765,12 @@ ID CLASS WEIGHT  REWEIGHT SIZE    RAW USE DATA    OMAP    META     AVAIL   %USE 
 17   hdd 3.63899  1.00000 3.6 TiB  20 GiB  19 GiB  48 KiB 1024 MiB 3.6 TiB 0.54 0.88  51     up
                     TOTAL  65 TiB 406 GiB 388 GiB 1.6 MiB   18 GiB  65 TiB 0.61
 MIN/MAX VAR: 0.86/1.26  STDDEV: 0.07
+```
+
+查看所有 osd 映射信息。
+
+```bash
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 ~]# ceph osd dump
 ```
 
 查看具体 osd 的 block 信息。
@@ -791,13 +804,7 @@ $ systemctl stop ceph-osd@2
 $ systemctl start ceph-osd@2
 ```
 
-获取 osd 的配置信息。
-
-```bash
-$ ceph daemon osd.0 config show
-```
-
-查看 osd 的核心配置。
+查看 osd 核心配置。
 
 ```
 [root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-134 ~]# ceph config show osd.44
@@ -1160,6 +1167,21 @@ $ ceph tell "osd.*" injectargs --osd_recovery_max_active=15
 $ ceph tell "osd.*" injectargs --osd_recovery_max_single_start=10
 $ ceph tell "osd.*" injectargs --osd_recovery_sleep=0.3
 ```
+
+### 配置
+
+获取 osd 全部配置信息。
+
+```bash
+$ ceph daemon osd.0 config show
+```
+
+获取 mon 全部配置信息。
+
+```bash
+$ ceph daemon mon.dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 config show
+```
+
 
 
 ## 相关链接
