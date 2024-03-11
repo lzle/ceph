@@ -5,15 +5,15 @@
     * [初始化](#初始化)
     * [部署方式](#部署方式)
     * [安装](#安装)
-    * [存储池](#存储池)  
+    * [存储池](#存储池)
     * [监控](#监控)
     * [SSD](#SSD)
-      
+
 * [卸载](#卸载)
     * [移除OSD](#移除OSD)
     * [清理OSD缓存](#清理OSD缓存)
     * [清理HOST缓存](#清理HOST缓存)
-    
+
 * [命令](#命令)
     * [OSD](#osd)
     * [POOL](#pool)
@@ -23,10 +23,11 @@
     * [RULE](#rule)
     * [PG](#pg)
     * [IOSTAT](#iostat)
-    
+
 * [管理](#管理)
     * [Recovery](#Recovery)
-    * [配置](#配置)
+    * [获取配置](#获取配置)
+    * [日志级别](#日志级别)
 
 ## 部署
 
@@ -99,16 +100,18 @@ ntpdate time.windows.com
 ssh-keygen -t rsa
 ```
 
-** 上面操作所有节点都要进行初始化 ** 
+** 上面操作所有节点都要进行初始化 **
 
 ### 部署方式
 
 14（N）版本及之前：
+
 * yum：常规的部署方式
 * ceph-deploy：ceph提供的简易部署工具，可以非常方便部署ceph集群
 * ceph-ansible：官方基于ansible写的自动化部署工具
 
 14（N）版本之后：
+
 * cephadm：使用容器部署和管理Ceph集群，需要先部署Docker或者Podman和Python3
 * rook：在Kubernetes中部署和管理Ceph集群
 
@@ -370,8 +373,7 @@ mkdir -p /ceph-cluster && cd /ceph-cluster
 ceph-deploy mgr create $node1 $node2 $node3
 ```
 
-注：MGR 是 Ceph L 版本新增加的组件，主要作用是分担和扩展 monitor 的部分功能，减轻 monitor 的负担，
-建议每台 monitor 节点都部署一个 mgr，以实现相同级别的高可用。
+注：MGR 是 Ceph L 版本新增加的组件，主要作用是分担和扩展 monitor 的部分功能，减轻 monitor 的负担， 建议每台 monitor 节点都部署一个 mgr，以实现相同级别的高可用。
 
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-2-23 ceph-cluster]# ceph -s
@@ -405,6 +407,7 @@ ceph osd pool ls
 ```
 
 指定存储池作为 RBD 使用。
+
 ```
 ceph osd pool application enable nomad rbd
 ```
@@ -583,7 +586,6 @@ $ ceph-volume lvm create --bluestore --data  /dev/sdd --block.db  /dev/nvme0n1p9
       PARTUUID                  235844c6-4c1e-4ab1-a7c0-c73f44f6c9a5
 ```
 
-
 ## 卸载
 
 ### 移除OSD
@@ -678,7 +680,6 @@ $ dmsetup remove  ceph--56b5a16e--a01d4b97731b-osd--block--a0a15a95
 ceph osd crush remove host dx-lt-yd-zhejiang-jinhua-5-10-104-1-21
 ```
 
-
 ## 命令
 
 基础命令，查看集群健康详情。
@@ -706,6 +707,7 @@ $ /usr/sbin/ceph-volume --cluster ceph lvm create --bluestore --data /dev/sdc
 ```
 
 查看 osd 状态。
+
 ```bash
 [root@dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 ~]# ceph osd stat
 156 osds: 154 up (since 2d), 154 in (since 8w); epoch: e132810
@@ -797,7 +799,7 @@ MIN/MAX VAR: 0.86/1.26  STDDEV: 0.07
       devices                   /dev/sdj
 ```
 
-停止和启动 osd 服务。 
+停止和启动 osd 服务。
 
 ```bash
 $ systemctl stop ceph-osd@2
@@ -1124,7 +1126,6 @@ ceph pg ls
 |                                  233 MiB/s |                                  525 MiB/s |                                  759 MiB/s |                                       3007 |                                       2157 |                                       5164 |
 ```
 
-
 ## 管理
 
 ### Recovery
@@ -1145,19 +1146,16 @@ ceph pg ls
 
 核心影响恢复速度的参数：
 
-* osd_max_backfills：由于一个 osd 承载了多个 pg,所以一个 osd 中的 pg 很大可能需要做 recovery。
-  这个参数就是设置每个 osd 最多能让 osd_max_backfills 个 pg 进行同时做 backfill。
+* osd_max_backfills：由于一个 osd 承载了多个 pg,所以一个 osd 中的 pg 很大可能需要做 recovery。 这个参数就是设置每个 osd 最多能让 osd_max_backfills 个 pg 进行同时做
+  backfill。
 
-* osd_recovery_op_priority：osd 修复操作的优先级，可小于该值；这个值越小，recovery 优先级越高。
-  高优先级会导致集群的性能降级直到 recovery 结束。
-  
-* osd_recovery_max_active：一个 osd 上可以承载多个 pg，可能好几个 pg 都需要 recovery，
-  这个值限定该 osd 最多同时有多少 pg 做 recovery。
+* osd_recovery_op_priority：osd 修复操作的优先级，可小于该值；这个值越小，recovery 优先级越高。 高优先级会导致集群的性能降级直到 recovery 结束。
+
+* osd_recovery_max_active：一个 osd 上可以承载多个 pg，可能好几个 pg 都需要 recovery， 这个值限定该 osd 最多同时有多少 pg 做 recovery。
 
 * osd_recovery_max_single_start： 未知
 
 * osd_recovery_sleep：每个 recovery 操作之间的间隔时间，单位是 ms。
-
 
 修改配置提高 recovery 速度，同时注意观察集群延迟情况。
 
@@ -1168,7 +1166,7 @@ $ ceph tell "osd.*" injectargs --osd_recovery_max_single_start=10
 $ ceph tell "osd.*" injectargs --osd_recovery_sleep=0.3
 ```
 
-### 配置
+### 获取配置
 
 获取 osd 全部配置信息。
 
@@ -1182,7 +1180,31 @@ $ ceph daemon osd.0 config show
 $ ceph daemon mon.dx-lt-yd-zhejiang-jinhua-5-10-104-1-159 config show
 ```
 
+### 日志级别
 
+查看当前日志级别。
+
+```bash
+$ ceph tell osd.0 config get debug_osd
+15/20
+```
+
+设置日志级别。
+
+```bash
+$ ceph tell osd.0 config set debug_osd 30/30
+Set debug_osd to 30/30
+
+$ ceph tell osd.0 config get debug_osd
+30/30
+```
+
+所有 osd 服务都生效
+
+```bash
+$ ceph tell osd.* config set debug_osd 30/30
+Set debug_osd to 30/30
+```
 
 ## 相关链接
 
