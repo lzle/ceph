@@ -31,9 +31,9 @@ def get_mon_log_files():
             f.startswith("ceph-mon.") and f.endswith(".log")]
 
 
-def gen_mallard_data(value):
+def gen_mallard_data(metric_name, value):
     mallard_data = {
-        "name": "ceph_mon_log_warn_count",
+        "name": metric_name,
         "time": int(time.time()),
         "endpoint": HOSTNAME,
         "tags": {
@@ -54,16 +54,19 @@ def report():
 
     dump_list = []
     for mon_log_file in file_list:
-        count = 0
+        warn_log_count, error_log_count = 0, 0
         with open(mon_log_file, 'r') as file:
             for line in file:
-                if line.startswith(last_minute) and "WRN" in line:
-                    count += 1
+                if line.startswith(last_minute):
+                    if "WRN" in line:
+                        warn_log_count += 1
+                    elif "ERR" in line:
+                        error_log_count += 1
 
-        dump_list.append(gen_mallard_data(count))
+        dump_list.append(gen_mallard_data("ceph_mon_log_warn_count", warn_log_count))
+        dump_list.append(gen_mallard_data("ceph_mon_log_error_count", error_log_count))
 
-    print(json.dumps(dump_list)
-
+    print(json.dumps(dump_list))
 
 if __name__ == "__main__":
     set_log()
