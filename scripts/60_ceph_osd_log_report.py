@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 HOSTNAME = socket.gethostname()
 CEPH_LOG_DIR = "/var/log/ceph"
-CEPH_CLUSTER = "ceph-sjz"
+CEPH_CLUSTER = "ceph-jh"
 CEPH_VERSION = "v14.2.22"
 LOG_FILE = '/usr/local/mallard/mallard-agent/var/60_ceph_osd_log_report.log'
 

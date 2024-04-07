@@ -28,6 +28,7 @@
     * [Recovery](#Recovery)
     * [获取配置](#获取配置)
     * [日志级别](#日志级别)
+    * [停机维护](#停机维护)
 
 ## 部署
 
@@ -931,6 +932,29 @@ rbd image 'ceph-volume':
 	modify_timestamp: Wed Aug  9 20:44:17 2023
 ```
 
+查看挂载信息。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-139 ceph]# rbd showmapped
+id pool  namespace image                                        snap device
+0  nomad           csi-vol-1c563042-de7c-11ed-9750-6c92bf9d36fc -    /dev/rbd0
+1  nomad           test-image                                   -    /dev/rbd1
+2  nomad           csi-vol-88daec7d-7195-11ee-bb87-246e96073af4 -    /dev/rbd2
+3  nomad           csi-vol-e78c5c60-84d2-11ed-9fe3-0894ef7dd406 -    /dev/rbd3
+```
+
+取消挂载。
+
+```bash
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-139 ceph]# rbd unmap -o force /dev/rbd2
+
+[root@dx-lt-yd-hebei-shijiazhuang-10-10-103-3-139 ceph]# cat /sys/kernel/debug/ceph/380a1e72-da89-4041-8478-76383f5f6378.client636459/osdc
+REQUESTS 0 homeless 0
+LINGER REQUESTS
+18446462598732840962	osd10	1.ac5aac28	1.c28	[10,51]/10	[10,51]/10	e445078	rbd_header.92dc4d5698745	0x20	14	WC/0
+BACKOFFS
+```
+
 ### MGR
 
 获取 mgr 服务相关信息。
@@ -1204,6 +1228,30 @@ $ ceph tell osd.0 config get debug_osd
 ```bash
 $ ceph tell osd.* config set debug_osd 30/30
 Set debug_osd to 30/30
+```
+
+### 停机维护
+
+服务器节点需求重启，不迁移 osd 数据。
+
+全局设置 noout，禁止数据平衡迁移。
+
+```bash
+$ ceph osd set noout
+```
+
+停止节点上的 osd 服务。
+
+```bash
+$ systemctl stop ceph-osd@{}
+```
+
+接下来进行服务器重启，然后恢复服务
+
+```bash
+$ ceph osd unset noout
+
+$ systemctl start ceph-osd@{}
 ```
 
 ## 相关链接
