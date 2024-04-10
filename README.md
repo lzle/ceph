@@ -955,6 +955,14 @@ LINGER REQUESTS
 BACKOFFS
 ```
 
+查看 rbd 所在的节点机器
+
+```
+[root@dx-lt-yd-zhejiang-jinhua-5-10-104-4-17 ~]# rbd status nomad/csi-vol-9afdfd47-94b5-11ee-be28-e8611f394983
+Watchers:
+	watcher=10.104.5.13:0/4205102659 client.274090 cookie=18446462598732840971
+```
+
 ### MGR
 
 获取 mgr 服务相关信息。
