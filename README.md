@@ -678,7 +678,7 @@ $ dmsetup remove  ceph--56b5a16e--a01d4b97731b-osd--block--a0a15a95
 执行清理
 
 ```bash
-ceph osd crush remove host dx-lt-yd-zhejiang-jinhua-5-10-104-1-21
+ceph osd crush remove dx-lt-yd-zhejiang-jinhua-5-10-104-1-21
 ```
 
 ## 命令
